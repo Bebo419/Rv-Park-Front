@@ -120,9 +120,10 @@ Edita `tailwind.config.js` para personalizar el sistema de colores.
 
 Proyecto académico - Universidad
 
-## 👨‍💻 Autor
+## 👨‍💻 Autores
 
-Diego Ponce - Aplicaciones Web Progresivas
+Diego Ponce, Luis García, Alonso Villaseñor - Aplicaciones Web Progresivas
+
 
 ---
 
