@@ -9,11 +9,13 @@ import { rentaService } from '../services/rentaService';
 import { METODOS_PAGO } from '../utils/constants';
 import { formatDate } from '../utils/dateUtils';
 import { formatCurrency } from '../utils/formatUtils';
+import { usePagination } from '../hooks/usePagination';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import Modal from '../components/Modal';
 import Input from '../components/Input';
 import Select from '../components/Select';
+import Pagination from '../components/Pagination';
 
 const Pagos = () => {
   const [pagos, setPagos] = useState([]);
@@ -140,6 +142,9 @@ const Pagos = () => {
     return matchSearch && matchRenta && matchPeriodo;
   });
 
+  // Paginación
+  const pagination = usePagination(filteredPagos);
+
   // Calcular totales
   const totalMonto = filteredPagos.reduce((sum, pago) => sum + parseFloat(pago.monto || 0), 0);
   const totalPagosMes = filteredPagos.filter(p => {
@@ -251,7 +256,7 @@ const Pagos = () => {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {filteredPagos.map((pago) => (
+                {pagination.paginatedData.map((pago) => (
                   <tr key={pago.id_pago} className="hover:bg-neutral-50">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
@@ -322,12 +327,21 @@ const Pagos = () => {
             {/* Footer con total */}
             <div className="border-t bg-neutral-50 px-4 py-3 flex justify-between items-center">
               <span className="text-sm text-neutral-600">
-                Mostrando {filteredPagos.length} de {pagos.length} pagos
-              </span>
-              <span className="font-semibold text-neutral-900">
-                Total: {formatCurrency(totalMonto)}
+                Total filtrado: {formatCurrency(totalMonto)}
               </span>
             </div>
+            <Pagination
+              currentPage={pagination.currentPage}
+              totalPages={pagination.totalPages}
+              pageSize={pagination.pageSize}
+              totalItems={pagination.totalItems}
+              startIndex={pagination.startIndex}
+              endIndex={pagination.endIndex}
+              onPageChange={pagination.goToPage}
+              onPageSizeChange={pagination.changePageSize}
+              hasNextPage={pagination.hasNextPage}
+              hasPrevPage={pagination.hasPrevPage}
+            />
           </div>
         )}
       </Card>

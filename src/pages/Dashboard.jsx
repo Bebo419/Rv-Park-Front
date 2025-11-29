@@ -3,11 +3,13 @@ import { toast } from 'react-toastify';
 import { FiFilter, FiRefreshCw } from 'react-icons/fi';
 import { spotService } from '../services/spotService';
 import { RV_PARKS, SPOT_ESTADOS } from '../utils/constants';
+import { usePagination } from '../hooks/usePagination';
 import SpotCard from '../components/SpotCard';
 import Card from '../components/Card';
 import Select from '../components/Select';
 import Button from '../components/Button';
 import Modal from '../components/Modal';
+import Pagination from '../components/Pagination';
 import { formatDate } from '../utils/dateUtils';
 import { formatCurrency } from '../utils/formatUtils';
 
@@ -70,6 +72,9 @@ const Dashboard = () => {
   };
 
   const parkName = RV_PARKS.find(p => p.id === selectedPark)?.nombre || '';
+
+  // Paginación
+  const pagination = usePagination(spots, 24); // 24 spots por página para grids
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -138,11 +143,25 @@ const Dashboard = () => {
             <p>No hay espacios disponibles</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
-            {spots.map((spot) => (
-              <SpotCard key={spot.id_spot} spot={spot} onClick={handleSpotClick} />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
+              {pagination.paginatedData.map((spot) => (
+                <SpotCard key={spot.id_spot} spot={spot} onClick={handleSpotClick} />
+              ))}
+            </div>
+            <Pagination
+              currentPage={pagination.currentPage}
+              totalPages={pagination.totalPages}
+              pageSize={pagination.pageSize}
+              totalItems={pagination.totalItems}
+              startIndex={pagination.startIndex}
+              endIndex={pagination.endIndex}
+              onPageChange={pagination.goToPage}
+              onPageSizeChange={pagination.changePageSize}
+              hasNextPage={pagination.hasNextPage}
+              hasPrevPage={pagination.hasPrevPage}
+            />
+          </>
         )}
       </Card>
 

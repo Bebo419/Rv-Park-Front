@@ -3,11 +3,13 @@ import { toast } from 'react-toastify';
 import { FiPlus, FiEdit2, FiTrash2, FiSearch, FiUser, FiPhone, FiMail } from 'react-icons/fi';
 import { clienteService } from '../services/clienteService';
 import { formatDate } from '../utils/dateUtils';
+import { usePagination } from '../hooks/usePagination';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import Modal from '../components/Modal';
 import Input from '../components/Input';
 import Select from '../components/Select';
+import Pagination from '../components/Pagination';
 
 const Clientes = () => {
   const [clientes, setClientes] = useState([]);
@@ -113,6 +115,9 @@ const Clientes = () => {
     cliente.email?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Paginación
+  const pagination = usePagination(filteredClientes);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -138,7 +143,7 @@ const Clientes = () => {
             />
           </div>
           <div className="text-sm text-neutral-500">
-            {filteredClientes.length} cliente(s) encontrado(s)
+            {pagination.totalItems} cliente(s) encontrado(s)
           </div>
         </div>
       </Card>
@@ -168,7 +173,7 @@ const Clientes = () => {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {filteredClientes.map((cliente) => (
+                {pagination.paginatedData.map((cliente) => (
                   <tr key={cliente.id_Persona} className="hover:bg-neutral-50">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
@@ -225,6 +230,18 @@ const Clientes = () => {
                 ))}
               </tbody>
             </table>
+            <Pagination
+              currentPage={pagination.currentPage}
+              totalPages={pagination.totalPages}
+              pageSize={pagination.pageSize}
+              totalItems={pagination.totalItems}
+              startIndex={pagination.startIndex}
+              endIndex={pagination.endIndex}
+              onPageChange={pagination.goToPage}
+              onPageSizeChange={pagination.changePageSize}
+              hasNextPage={pagination.hasNextPage}
+              hasPrevPage={pagination.hasPrevPage}
+            />
           </div>
         )}
       </Card>

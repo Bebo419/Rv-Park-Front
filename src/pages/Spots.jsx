@@ -3,11 +3,13 @@ import { toast } from 'react-toastify';
 import { FiPlus, FiEdit2, FiTrash2 } from 'react-icons/fi';
 import { spotService } from '../services/spotService';
 import { RV_PARKS, SPOT_ESTADOS } from '../utils/constants';
+import { usePagination } from '../hooks/usePagination';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import Modal from '../components/Modal';
 import Input from '../components/Input';
 import Select from '../components/Select';
+import Pagination from '../components/Pagination';
 
 const Spots = () => {
   const [spots, setSpots] = useState([]);
@@ -104,6 +106,9 @@ const Spots = () => {
     setFormData({ codigo: '', rvParkId: '', estado: 'Disponible' });
   };
 
+  // Paginación
+  const pagination = usePagination(spots);
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -128,7 +133,7 @@ const Spots = () => {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {spots.map((spot) => (
+              {pagination.paginatedData.map((spot) => (
                 <tr key={spot.id} className="hover:bg-neutral-50">
                   <td className="px-4 py-3">{spot.codigo}</td>
                   <td className="px-4 py-3">{RV_PARKS.find(p => p.id === spot.rvParkId)?.nombre}</td>
@@ -153,6 +158,18 @@ const Spots = () => {
               ))}
             </tbody>
           </table>
+          <Pagination
+            currentPage={pagination.currentPage}
+            totalPages={pagination.totalPages}
+            pageSize={pagination.pageSize}
+            totalItems={pagination.totalItems}
+            startIndex={pagination.startIndex}
+            endIndex={pagination.endIndex}
+            onPageChange={pagination.goToPage}
+            onPageSizeChange={pagination.changePageSize}
+            hasNextPage={pagination.hasNextPage}
+            hasPrevPage={pagination.hasPrevPage}
+          />
         </div>
       </Card>
 

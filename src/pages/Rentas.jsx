@@ -10,11 +10,13 @@ import { clienteService } from '../services/clienteService';
 import { RV_PARKS, METODOS_PAGO, ESTATUS_PAGO_COLORS } from '../utils/constants';
 import { formatDate } from '../utils/dateUtils';
 import { formatCurrency } from '../utils/formatUtils';
+import { usePagination } from '../hooks/usePagination';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import Modal from '../components/Modal';
 import Input from '../components/Input';
 import Select from '../components/Select';
+import Pagination from '../components/Pagination';
 
 const Rentas = () => {
   const [rentas, setRentas] = useState([]);
@@ -187,6 +189,9 @@ const Rentas = () => {
     );
   });
 
+  // Paginación
+  const pagination = usePagination(filteredRentas);
+
   const getStatusColor = (status) => {
     return ESTATUS_PAGO_COLORS[status] || { bg: 'bg-neutral-100', text: 'text-neutral-700' };
   };
@@ -269,7 +274,7 @@ const Rentas = () => {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {filteredRentas.map((renta) => {
+                {pagination.paginatedData.map((renta) => {
                   const statusColor = getStatusColor(renta.estatus_pago);
                   return (
                     <tr key={renta.id_renta} className="hover:bg-neutral-50">
@@ -358,6 +363,18 @@ const Rentas = () => {
                 })}
               </tbody>
             </table>
+            <Pagination
+              currentPage={pagination.currentPage}
+              totalPages={pagination.totalPages}
+              pageSize={pagination.pageSize}
+              totalItems={pagination.totalItems}
+              startIndex={pagination.startIndex}
+              endIndex={pagination.endIndex}
+              onPageChange={pagination.goToPage}
+              onPageSizeChange={pagination.changePageSize}
+              hasNextPage={pagination.hasNextPage}
+              hasPrevPage={pagination.hasPrevPage}
+            />
           </div>
         )}
       </Card>
