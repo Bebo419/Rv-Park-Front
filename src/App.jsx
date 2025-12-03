@@ -6,11 +6,13 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import RvParks from './pages/RvParks';
 import Spots from './pages/Spots';
 import Rentas from './pages/Rentas';
 import Pagos from './pages/Pagos';
 import Clientes from './pages/Clientes';
 import Reportes from './pages/Reportes';
+import Eventos from './pages/Eventos';
 
 function App() {
   return (
@@ -27,6 +29,16 @@ function App() {
               <ProtectedRoute>
                 <Layout>
                   <Dashboard />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/rv-parks"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <RvParks />
                 </Layout>
               </ProtectedRoute>
             }
@@ -77,6 +89,16 @@ function App() {
               <ProtectedRoute>
                 <Layout>
                   <Reportes />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/eventos"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <Eventos />
                 </Layout>
               </ProtectedRoute>
             }

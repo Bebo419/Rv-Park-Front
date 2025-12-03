@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import { FiFilter, FiRefreshCw } from 'react-icons/fi';
+import { FiFilter, FiRefreshCw, FiSearch } from 'react-icons/fi';
 import { spotService } from '../services/spotService';
 import { RV_PARKS, SPOT_ESTADOS } from '../utils/constants';
 import { usePagination } from '../hooks/usePagination';
@@ -9,6 +9,7 @@ import Card from '../components/Card';
 import Select from '../components/Select';
 import Button from '../components/Button';
 import Modal from '../components/Modal';
+import Input from '../components/Input';
 import Pagination from '../components/Pagination';
 import { formatDate } from '../utils/dateUtils';
 import { formatCurrency } from '../utils/formatUtils';
@@ -17,6 +18,7 @@ const Dashboard = () => {
   const [spots, setSpots] = useState([]);
   const [selectedPark, setSelectedPark] = useState(RV_PARKS[0].id);
   const [filterEstado, setFilterEstado] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
   const [selectedSpot, setSelectedSpot] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -73,8 +75,15 @@ const Dashboard = () => {
 
   const parkName = RV_PARKS.find(p => p.id === selectedPark)?.nombre || '';
 
+  // Filtrar spots por búsqueda
+  const filteredSpots = spots.filter((spot) =>
+    spot.codigo_spot?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    spot.estado?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    spot.zona?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   // Paginación
-  const pagination = usePagination(spots, 24); // 24 spots por página para grids
+  const pagination = usePagination(filteredSpots, 24); // 24 spots por página para grids
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -129,6 +138,23 @@ const Dashboard = () => {
           <Button icon={FiRefreshCw} onClick={loadSpots} disabled={loading}>
             Actualizar
           </Button>
+        </div>
+      </Card>
+
+      {/* Barra de búsqueda */}
+      <Card>
+        <div className="flex items-center gap-4">
+          <div className="flex-1">
+            <Input
+              placeholder="Buscar por código, estado o zona..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              icon={FiSearch}
+            />
+          </div>
+          <div className="text-sm text-neutral-500">
+            {pagination.totalItems} spot(s) encontrado(s)
+          </div>
         </div>
       </Card>
 

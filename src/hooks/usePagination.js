@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { PAGINATION } from '../utils/constants';
 
 /**
@@ -20,8 +20,8 @@ export const usePagination = (items = [], initialPageSize = PAGINATION.DEFAULT_P
 
   // Calcular información de paginación
   const totalItems = items.length;
-  const totalPages = Math.ceil(totalItems / pageSize);
-  const startIndex = (currentPage - 1) * pageSize + 1;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const startIndex = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const endIndex = Math.min(currentPage * pageSize, totalItems);
 
   // Funciones de navegación
@@ -48,9 +48,11 @@ export const usePagination = (items = [], initialPageSize = PAGINATION.DEFAULT_P
   };
 
   // Resetear a la primera página cuando cambian los items
-  useMemo(() => {
-    setCurrentPage(1);
-  }, [items.length]);
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(1);
+    }
+  }, [items.length, totalPages, currentPage]);
 
   return {
     // Datos paginados

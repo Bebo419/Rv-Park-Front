@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { 
   FiHome, FiMap, FiCalendar, FiDollarSign, 
   FiUsers, FiFileText, FiMenu, FiX, FiLogOut,
-  FiSettings
+  FiSettings, FiMapPin
 } from 'react-icons/fi';
 import { toast } from 'react-toastify';
 
@@ -16,10 +16,12 @@ const Layout = ({ children }) => {
 
   const menuItems = [
     { path: '/dashboard', label: 'Dashboard', icon: FiHome },
+    { path: '/rv-parks', label: 'RV Parks', icon: FiMapPin },
     { path: '/spots', label: 'Espacios', icon: FiMap },
     { path: '/rentas', label: 'Rentas', icon: FiCalendar },
     { path: '/pagos', label: 'Pagos', icon: FiDollarSign },
     { path: '/clientes', label: 'Clientes', icon: FiUsers },
+    { path: '/eventos', label: 'Eventos', icon: FiCalendar },
     { path: '/reportes', label: 'Reportes', icon: FiFileText },
   ];
 

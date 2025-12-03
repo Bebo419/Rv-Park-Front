@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import { FiPlus, FiEdit2, FiTrash2 } from 'react-icons/fi';
+import { FiPlus, FiEdit2, FiTrash2, FiSearch } from 'react-icons/fi';
 import { spotService } from '../services/spotService';
 import { RV_PARKS, SPOT_ESTADOS } from '../utils/constants';
 import { usePagination } from '../hooks/usePagination';
@@ -16,6 +16,7 @@ const Spots = () => {
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingSpot, setEditingSpot] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const [formData, setFormData] = useState({
     codigo: '',
     rvParkId: '',
@@ -106,8 +107,15 @@ const Spots = () => {
     setFormData({ codigo: '', rvParkId: '', estado: 'Disponible' });
   };
 
+  // Filtrar spots por búsqueda
+  const filteredSpots = spots.filter((spot) =>
+    spot.codigo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    spot.estado.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    RV_PARKS.find(p => p.id === spot.rvParkId)?.nombre.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   // Paginación
-  const pagination = usePagination(spots);
+  const pagination = usePagination(filteredSpots);
 
   return (
     <div className="space-y-6">
@@ -120,6 +128,23 @@ const Spots = () => {
           Nuevo Espacio
         </Button>
       </div>
+
+      {/* Barra de búsqueda */}
+      <Card>
+        <div className="flex items-center gap-4">
+          <div className="flex-1">
+            <Input
+              placeholder="Buscar por código, estado o RV Park..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              icon={FiSearch}
+            />
+          </div>
+          <div className="text-sm text-neutral-500">
+            {pagination.totalItems} espacio(s) encontrado(s)
+          </div>
+        </div>
+      </Card>
 
       <Card>
         <div className="overflow-x-auto">
