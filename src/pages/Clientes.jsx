@@ -17,6 +17,7 @@ const Clientes = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingCliente, setEditingCliente] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [errors, setErrors] = useState({});
   const [formData, setFormData] = useState({
     nombre: '',
     telefono: '',
@@ -43,8 +44,54 @@ const Clientes = () => {
     }
   };
 
+  const validateForm = () => {
+    const newErrors = {};
+    
+    // Validar nombre
+    if (!formData.nombre || formData.nombre.trim().length < 3) {
+      newErrors.nombre = 'El nombre debe tener al menos 3 caracteres';
+    }
+    
+    // Validar email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!formData.email) {
+      newErrors.email = 'El email es requerido';
+    } else if (!emailRegex.test(formData.email)) {
+      newErrors.email = 'Ingrese un email válido';
+    }
+    
+    // Validar teléfono (opcional pero si se ingresa, debe ser válido)
+    if (formData.telefono) {
+      const telefonoRegex = /^[0-9]{10,15}$/;
+      const telefonoLimpio = formData.telefono.replace(/[\s-()]/g, '');
+      if (!telefonoRegex.test(telefonoLimpio)) {
+        newErrors.telefono = 'Ingrese un teléfono válido (10-15 dígitos)';
+      }
+    }
+    
+    // Validaciones solo para crear nuevo cliente
+    if (!editingCliente) {
+      if (!formData.nombre_usuario || formData.nombre_usuario.trim().length < 4) {
+        newErrors.nombre_usuario = 'El nombre de usuario debe tener al menos 4 caracteres';
+      }
+      
+      if (!formData.password_hash || formData.password_hash.length < 6) {
+        newErrors.password_hash = 'La contraseña debe tener al menos 6 caracteres';
+      }
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!validateForm()) {
+      toast.error('Por favor corrija los errores en el formulario');
+      return;
+    }
+    
     setLoading(true);
 
     try {
@@ -82,6 +129,7 @@ const Clientes = () => {
       nombre_usuario: cliente.usuario?.nombre_usuario || '',
       password_hash: '', // No mostramos password al editar
     });
+    setErrors({});
     setShowModal(true);
   };
 
@@ -99,6 +147,7 @@ const Clientes = () => {
 
   const resetForm = () => {
     setEditingCliente(null);
+    setErrors({});
     setFormData({
       nombre: '',
       telefono: '',
@@ -260,7 +309,9 @@ const Clientes = () => {
             onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
             placeholder="Ej: Juan Pérez García"
             required
+            minLength={3}
             icon={FiUser}
+            error={errors.nombre}
           />
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -270,8 +321,9 @@ const Clientes = () => {
               type="tel"
               value={formData.telefono}
               onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
-              placeholder="Ej: 555-123-4567"
+              placeholder="Ej: 5551234567"
               icon={FiPhone}
+              error={errors.telefono}
             />
             <Input
               label="Email"
@@ -282,6 +334,7 @@ const Clientes = () => {
               placeholder="Ej: correo@ejemplo.com"
               icon={FiMail}
               required
+              error={errors.email}
             />
           </div>
 
@@ -294,6 +347,8 @@ const Clientes = () => {
                 onChange={(e) => setFormData({ ...formData, nombre_usuario: e.target.value })}
                 placeholder="Ej: juan.perez"
                 required
+                minLength={4}
+                error={errors.nombre_usuario}
               />
               <Input
                 label="Contraseña"
@@ -301,8 +356,10 @@ const Clientes = () => {
                 type="password"
                 value={formData.password_hash}
                 onChange={(e) => setFormData({ ...formData, password_hash: e.target.value })}
-                placeholder="Contraseña del cliente"
+                placeholder="Mínimo 6 caracteres"
                 required
+                minLength={6}
+                error={errors.password_hash}
               />
             </>
           )}

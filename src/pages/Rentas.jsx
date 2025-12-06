@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import {
   FiPlus, FiEdit2, FiTrash2, FiSearch, FiCalendar,
-  FiMapPin, FiUser, FiDollarSign, FiClock, FiCheckCircle, FiXCircle
+  FiMapPin, FiUser, FiDollarSign, FiClock, FiCheckCircle, FiXCircle, FiAlertCircle
 } from 'react-icons/fi';
 import { rentaService } from '../services/rentaService';
 import { spotService } from '../services/spotService';
 import { clienteService } from '../services/clienteService';
-import { RV_PARKS, METODOS_PAGO, ESTATUS_PAGO_COLORS } from '../utils/constants';
+import { rvParkService } from '../services/rvParkService';
+import { pagoService } from '../services/pagoService';
+import { METODOS_PAGO, ESTATUS_PAGO_COLORS } from '../utils/constants';
 import { formatDate } from '../utils/dateUtils';
 import { formatCurrency } from '../utils/formatUtils';
 import { usePagination } from '../hooks/usePagination';
@@ -22,30 +24,44 @@ const Rentas = () => {
   const [rentas, setRentas] = useState([]);
   const [spots, setSpots] = useState([]);
   const [clientes, setClientes] = useState([]);
+  const [rvParks, setRvParks] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
-  const [showCalcModal, setShowCalcModal] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showPagoModal, setShowPagoModal] = useState(false);
+  const [selectedRenta, setSelectedRenta] = useState(null);
   const [editingRenta, setEditingRenta] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPark, setSelectedPark] = useState('');
-  const [calculoPago, setCalculoPago] = useState(null);
+  const [errors, setErrors] = useState({});
   const [formData, setFormData] = useState({
     id_usuario: '',
     id_spot: '',
     fecha_inicio: new Date().toISOString().split('T')[0],
-    fecha_fin: '',
-    metodo_pago: 'Efectivo',
+    tipo_renta: 'mes',
+    tarifa_unitaria: '',
+    duracion: 1,
     observaciones: '',
+  });
+  const [motivoCancelacion, setMotivoCancelacion] = useState('');
+  const [pagoData, setPagoData] = useState({
+    monto: '',
+    metodo_pago: 'Efectivo',
+    referencia: '',
+    fecha_pago: new Date().toISOString().split('T')[0],
   });
 
   useEffect(() => {
     loadRentas();
     loadClientes();
+    loadRvParks();
   }, []);
 
   useEffect(() => {
     if (selectedPark) {
       loadSpots(selectedPark);
+    } else {
+      setSpots([]);
     }
   }, [selectedPark]);
 
@@ -77,48 +93,100 @@ const Rentas = () => {
       setClientes(clientes);
     } catch (error) {
       console.error('Error al cargar clientes:', error);
+      toast.error('Error al cargar clientes');
     }
   };
 
-  const handleCalcMonto = async () => {
-    if (!formData.fecha_inicio) {
-      toast.error('Ingrese la fecha de inicio');
-      return;
-    }
+  const loadRvParks = async () => {
     try {
-      const response = await rentaService.calcularMonto(
-        formData.id_spot,
-        formData.fecha_inicio,
-        formData.fecha_fin || null
-      );
-      setCalculoPago(response.calculoPago);
-      setShowCalcModal(true);
-    } catch {
-      toast.error('Error al calcular monto');
+      const parks = await rvParkService.getAll();
+      setRvParks(parks);
+    } catch (error) {
+      console.error('Error al cargar RV Parks:', error);
+      toast.error('Error al cargar RV Parks');
     }
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+    
+    if (!formData.id_usuario) newErrors.id_usuario = 'Seleccione un cliente';
+    if (!formData.id_spot) newErrors.id_spot = 'Seleccione un spot';
+    if (!formData.fecha_inicio) newErrors.fecha_inicio = 'Ingrese la fecha de inicio';
+    if (!formData.tipo_renta) newErrors.tipo_renta = 'Seleccione el tipo de renta';
+    
+    if (formData.tipo_renta === 'personalizado') {
+      if (!formData.fecha_fin) {
+        newErrors.fecha_fin = 'Para tipo personalizado, ingrese fecha de fin';
+      } else if (new Date(formData.fecha_fin) <= new Date(formData.fecha_inicio)) {
+        newErrors.fecha_fin = 'La fecha de fin debe ser posterior a la de inicio';
+      }
+    }
+    
+    if (!formData.tarifa_unitaria || parseFloat(formData.tarifa_unitaria) <= 0) {
+      newErrors.tarifa_unitaria = 'Ingrese una tarifa válida mayor a 0';
+    }
+    
+    if (formData.tipo_renta !== 'personalizado') {
+      if (!formData.duracion || parseInt(formData.duracion) <= 0) {
+        newErrors.duracion = 'Ingrese una duración válida mayor a 0';
+      }
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!validateForm()) {
+      toast.error('Por favor corrija los errores en el formulario');
+      return;
+    }
+    
     setLoading(true);
 
     try {
-      if (editingRenta) {
-        await rentaService.update(editingRenta.id_renta, formData);
-        toast.success('Renta actualizada correctamente');
+      const dataToSend = {
+        id_usuario: parseInt(formData.id_usuario),
+        id_spot: parseInt(formData.id_spot),
+        fecha_inicio: formData.fecha_inicio,
+        tipo_renta: formData.tipo_renta,
+        tarifa_unitaria: parseFloat(formData.tarifa_unitaria),
+        observaciones: formData.observaciones || null,
+      };
+
+      // Solo enviar duracion si no es personalizado
+      if (formData.tipo_renta !== 'personalizado') {
+        dataToSend.duracion = parseInt(formData.duracion);
       } else {
-        const response = await rentaService.create(formData);
-        if (response.calculoPago) {
-          toast.success(
-            `Renta creada. Primer pago: ${formatCurrency(response.calculoPago.monto)} (${response.calculoPago.diasRestantes} días)`
-          );
-        } else {
-          toast.success('Renta creada correctamente');
-        }
+        dataToSend.fecha_fin = formData.fecha_fin;
       }
-      setShowModal(false);
-      resetForm();
-      loadRentas();
+
+      if (editingRenta) {
+        await rentaService.update(editingRenta.id_renta, dataToSend);
+        toast.success('Renta actualizada correctamente');
+        setShowModal(false);
+        resetForm();
+        loadRentas();
+      } else {
+        const response = await rentaService.create(dataToSend);
+        toast.success('Renta creada correctamente. ¿Desea registrar el pago ahora?');
+        
+        // Mostrar modal de pago con la renta recién creada
+        setSelectedRenta(response.data);
+        setPagoData({
+          monto: response.data.monto_total || '',
+          metodo_pago: 'Efectivo',
+          referencia: '',
+          fecha_pago: new Date().toISOString().split('T')[0],
+        });
+        setShowModal(false);
+        setShowPagoModal(true);
+        resetForm();
+        loadRentas();
+      }
     } catch (error) {
       toast.error(error.response?.data?.message || 'Error al guardar renta');
     } finally {
@@ -132,60 +200,106 @@ const Rentas = () => {
       id_usuario: renta.id_usuario || '',
       id_spot: renta.id_spot || '',
       fecha_inicio: renta.fecha_inicio || '',
-      fecha_fin: renta.fecha_fin || '',
-      metodo_pago: renta.metodo_pago || 'Efectivo',
+      tipo_renta: renta.tipo_renta || 'mes',
+      tarifa_unitaria: renta.tarifa_unitaria || '',
+      duracion: renta.duracion || 1,
       observaciones: renta.observaciones || '',
     });
     if (renta.spot?.id_rv_park) {
       setSelectedPark(renta.spot.id_rv_park);
     }
+    setErrors({});
     setShowModal(true);
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('¿Está seguro de eliminar esta renta? El spot volverá a estar disponible.')) return;
+  const handleCancelar = (renta) => {
+    if (renta.estatus_pago === 'Cancelado') {
+      toast.warning('Esta renta ya está cancelada');
+      return;
+    }
+    setSelectedRenta(renta);
+    setMotivoCancelacion('');
+    setShowCancelModal(true);
+  };
 
+  const handleConfirmCancel = async () => {
+    if (!motivoCancelacion || motivoCancelacion.trim().length < 10) {
+      toast.error('El motivo de cancelación debe tener al menos 10 caracteres');
+      return;
+    }
+
+    setLoading(true);
     try {
-      await rentaService.delete(id);
-      toast.success('Renta eliminada correctamente');
+      await rentaService.cancelar(selectedRenta.id_renta, { motivo_cancelacion: motivoCancelacion });
+      toast.success('Renta cancelada exitosamente');
+      setShowCancelModal(false);
+      setMotivoCancelacion('');
+      setSelectedRenta(null);
       loadRentas();
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Error al eliminar renta');
+      toast.error(error.response?.data?.message || 'Error al cancelar renta');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleFinalizar = async (id) => {
-    if (!window.confirm('¿Está seguro de finalizar esta renta?')) return;
+  const handleRegistrarPago = async () => {
+    if (!pagoData.monto || parseFloat(pagoData.monto) <= 0) {
+      toast.error('Ingrese un monto válido mayor a 0');
+      return;
+    }
 
+    setLoading(true);
     try {
-      await rentaService.finalizar(id);
-      toast.success('Renta finalizada correctamente');
+      const pagoPayload = {
+        id_renta: selectedRenta.id_renta,
+        fecha_pago: pagoData.fecha_pago,
+        monto: parseFloat(pagoData.monto),
+        metodo_pago: pagoData.metodo_pago,
+        referencia: pagoData.referencia || null,
+      };
+
+      await pagoService.create(pagoPayload);
+      toast.success('Pago registrado exitosamente');
+      setShowPagoModal(false);
+      setPagoData({
+        monto: '',
+        metodo_pago: 'Efectivo',
+        referencia: '',
+        fecha_pago: new Date().toISOString().split('T')[0],
+      });
+      setSelectedRenta(null);
       loadRentas();
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Error al finalizar renta');
+      toast.error(error.response?.data?.message || 'Error al registrar pago');
+    } finally {
+      setLoading(false);
     }
   };
 
   const resetForm = () => {
     setEditingRenta(null);
     setSelectedPark('');
-    setCalculoPago(null);
+    setErrors({});
     setFormData({
       id_usuario: '',
       id_spot: '',
       fecha_inicio: new Date().toISOString().split('T')[0],
-      fecha_fin: '',
-      metodo_pago: 'Efectivo',
+      tipo_renta: 'mes',
+      tarifa_unitaria: '',
+      duracion: 1,
       observaciones: '',
     });
   };
 
   const filteredRentas = rentas.filter((renta) => {
     const clienteNombre = renta.usuario?.Persona?.nombre || '';
-    const spotCodigo = renta.spot?.codigo || '';
+    const spotCodigo = renta.spot?.codigo_spot || '';
+    const tipoRenta = renta.tipo_renta || '';
     return (
       clienteNombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      spotCodigo.toLowerCase().includes(searchTerm.toLowerCase())
+      spotCodigo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      tipoRenta.toLowerCase().includes(searchTerm.toLowerCase())
     );
   });
 
@@ -227,11 +341,11 @@ const Rentas = () => {
           </p>
           <p className="text-sm text-warning-600">Pendientes</p>
         </Card>
-        <Card className="text-center bg-primary-50">
-          <p className="text-2xl font-bold text-primary-700">
-            {rentas.filter(r => !r.fecha_fin).length}
+        <Card className="text-center bg-red-50">
+          <p className="text-2xl font-bold text-red-700">
+            {rentas.filter(r => r.estatus_pago === 'Cancelado').length}
           </p>
-          <p className="text-sm text-primary-600">Activas</p>
+          <p className="text-sm text-red-600">Canceladas</p>
         </Card>
       </div>
 
@@ -299,7 +413,7 @@ const Rentas = () => {
                           <div>
                             <p className="font-medium">{renta.spot?.codigo_spot || '-'}</p>
                             <p className="text-xs text-neutral-500">
-                              {RV_PARKS.find(p => p.id === renta.spot?.id_rv_park)?.nombre || ''}
+                              {rvParks.find(p => p.id_rv_park === renta.spot?.id_rv_park)?.nombre || ''}
                             </p>
                           </div>
                         </div>
@@ -333,29 +447,27 @@ const Rentas = () => {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex justify-end gap-2">
-                          {!renta.fecha_fin && (
-                            <button
-                              onClick={() => handleFinalizar(renta.id_renta)}
-                              className="p-2 text-success-600 hover:bg-success-50 rounded-lg transition-colors"
-                              title="Finalizar renta"
-                            >
-                              <FiCheckCircle size={18} />
-                            </button>
+                          {renta.estatus_pago !== 'Cancelado' && (
+                            <>
+                              <button
+                                onClick={() => handleEdit(renta)}
+                                className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                                title="Editar"
+                              >
+                                <FiEdit2 size={18} />
+                              </button>
+                              <button
+                                onClick={() => handleCancelar(renta)}
+                                className="p-2 text-warning-600 hover:bg-warning-50 rounded-lg transition-colors"
+                                title="Cancelar renta"
+                              >
+                                <FiXCircle size={18} />
+                              </button>
+                            </>
                           )}
-                          <button
-                            onClick={() => handleEdit(renta)}
-                            className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
-                            title="Editar"
-                          >
-                            <FiEdit2 size={18} />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(renta.id_renta)}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Eliminar"
-                          >
-                            <FiTrash2 size={18} />
-                          </button>
+                          {renta.estatus_pago === 'Cancelado' && (
+                            <span className="text-xs text-neutral-400 px-2 py-1">Cancelada</span>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -397,8 +509,9 @@ const Rentas = () => {
                 setSelectedPark(e.target.value);
                 setFormData({ ...formData, id_spot: '' });
               }}
-              options={RV_PARKS.map(p => ({ value: p.id, label: p.nombre }))}
+              options={rvParks.map(p => ({ value: p.id_rv_park, label: p.nombre }))}
               required
+              error={errors.park}
             />
             <Select
               label="Espacio Disponible"
@@ -409,6 +522,7 @@ const Rentas = () => {
               placeholder={selectedPark ? 'Seleccionar espacio' : 'Primero seleccione un Park'}
               disabled={!selectedPark}
               required
+              error={errors.id_spot}
             />
           </div>
 
@@ -423,35 +537,105 @@ const Rentas = () => {
               label: c.nombre || c.Persona?.nombre
             }))}
             required
+            error={errors.id_usuario}
           />
 
-          {/* Fechas */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Fecha de Inicio */}
+          <Input
+            label="Fecha de Inicio"
+            name="fecha_inicio"
+            type="date"
+            value={formData.fecha_inicio}
+            onChange={(e) => setFormData({ ...formData, fecha_inicio: e.target.value })}
+            required
+            error={errors.fecha_inicio}
+          />
+
+          {/* Tipo de Renta */}
+          <Select
+            label="Tipo de Renta"
+            name="tipo_renta"
+            value={formData.tipo_renta}
+            onChange={(e) => setFormData({ ...formData, tipo_renta: e.target.value, fecha_fin: '' })}
+            options={[
+              { value: 'dia', label: 'Por Día' },
+              { value: 'semana', label: 'Por Semana' },
+              { value: 'mes', label: 'Por Mes' },
+              { value: 'personalizado', label: 'Personalizado' },
+            ]}
+            required
+            error={errors.tipo_renta}
+          />
+
+          {/* Campos dinámicos según tipo de renta */}
+          {formData.tipo_renta === 'personalizado' ? (
             <Input
-              label="Fecha de Inicio"
-              name="fecha_inicio"
-              type="date"
-              value={formData.fecha_inicio}
-              onChange={(e) => setFormData({ ...formData, fecha_inicio: e.target.value })}
-              required
-            />
-            <Input
-              label="Fecha de Fin (opcional)"
+              label="Fecha de Fin"
               name="fecha_fin"
               type="date"
               value={formData.fecha_fin}
               onChange={(e) => setFormData({ ...formData, fecha_fin: e.target.value })}
+              required
+              error={errors.fecha_fin}
             />
-          </div>
+          ) : (
+            <Input
+              label={`Duración (${formData.tipo_renta === 'dia' ? 'días' : formData.tipo_renta === 'semana' ? 'semanas' : 'meses'})`}
+              name="duracion"
+              type="number"
+              min="1"
+              value={formData.duracion}
+              onChange={(e) => setFormData({ ...formData, duracion: e.target.value })}
+              required
+              error={errors.duracion}
+            />
+          )}
 
-          {/* Método de Pago */}
-          <Select
-            label="Método de Pago"
-            name="metodo_pago"
-            value={formData.metodo_pago}
-            onChange={(e) => setFormData({ ...formData, metodo_pago: e.target.value })}
-            options={METODOS_PAGO.map(m => ({ value: m, label: m }))}
+          {/* Tarifa Unitaria */}
+          <Input
+            label={`Tarifa por ${formData.tipo_renta === 'dia' ? 'Día' : formData.tipo_renta === 'semana' ? 'Semana' : formData.tipo_renta === 'mes' ? 'Mes' : 'Día'}`}
+            name="tarifa_unitaria"
+            type="number"
+            step="0.01"
+            min="0.01"
+            value={formData.tarifa_unitaria}
+            onChange={(e) => setFormData({ ...formData, tarifa_unitaria: e.target.value })}
+            placeholder="Ej: 1200.00"
+            required
+            error={errors.tarifa_unitaria}
+            icon={FiDollarSign}
           />
+
+          {/* Preview de cálculo */}
+          {formData.tarifa_unitaria && (formData.duracion || formData.fecha_fin) && (() => {
+            try {
+              let montoEstimado = 0;
+              if (formData.tipo_renta === 'personalizado' && formData.fecha_fin && formData.fecha_inicio) {
+                const dias = Math.ceil((new Date(formData.fecha_fin) - new Date(formData.fecha_inicio)) / (1000 * 60 * 60 * 24));
+                montoEstimado = dias * parseFloat(formData.tarifa_unitaria || 0);
+              } else {
+                montoEstimado = parseFloat(formData.tarifa_unitaria || 0) * parseInt(formData.duracion || 0);
+              }
+              
+              return (
+                <div className="bg-primary-50 p-4 rounded-lg">
+                  <p className="text-sm font-medium text-primary-900 mb-2">Vista Previa</p>
+                  <div className="text-sm space-y-1">
+                    <p className="text-primary-700">
+                      <strong>Monto Total Estimado:</strong> {formatCurrency(montoEstimado)}
+                    </p>
+                    {formData.tipo_renta !== 'personalizado' && (
+                      <p className="text-primary-600">
+                        {formData.duracion} {formData.tipo_renta === 'dia' ? 'días' : formData.tipo_renta === 'semana' ? 'semanas' : 'meses'} x {formatCurrency(formData.tarifa_unitaria || 0)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              );
+            } catch {
+              return null;
+            }
+          })()}
 
           {/* Observaciones */}
           <div>
@@ -468,30 +652,6 @@ const Rentas = () => {
             />
           </div>
 
-          {/* Botón calcular monto */}
-          {!editingRenta && formData.fecha_inicio && (
-            <div className="bg-neutral-50 p-4 rounded-lg">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleCalcMonto}
-                icon={FiDollarSign}
-              >
-                Calcular Monto del Primer Pago
-              </Button>
-              {calculoPago && (
-                <div className="mt-3 text-sm">
-                  <p className="text-neutral-600">
-                    <strong>Monto a pagar:</strong> {formatCurrency(calculoPago.monto)}
-                  </p>
-                  <p className="text-neutral-500">
-                    {calculoPago.diasRestantes} días restantes del mes (período: {calculoPago.periodo})
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-
           <div className="flex justify-end gap-3 pt-4 border-t">
             <Button
               type="button"
@@ -507,31 +667,175 @@ const Rentas = () => {
         </form>
       </Modal>
 
-      {/* Modal de Cálculo */}
+      {/* Modal de Cancelación */}
       <Modal
-        isOpen={showCalcModal}
-        onClose={() => setShowCalcModal(false)}
-        title="Cálculo de Pago"
-        size="sm"
+        isOpen={showCancelModal}
+        onClose={() => {
+          setShowCancelModal(false);
+          setMotivoCancelacion('');
+          setSelectedRenta(null);
+        }}
+        title="Cancelar Renta"
+        size="md"
       >
-        {calculoPago && (
-          <div className="space-y-4">
-            <div className="bg-success-50 p-4 rounded-lg text-center">
-              <p className="text-sm text-success-600">Monto del Primer Pago</p>
-              <p className="text-3xl font-bold text-success-700">
-                {formatCurrency(calculoPago.monto)}
-              </p>
+        <div className="space-y-4">
+          <div className="bg-warning-50 border border-warning-200 rounded-lg p-4 flex gap-3">
+            <FiAlertCircle className="text-warning-600 flex-shrink-0 mt-0.5" size={20} />
+            <div className="text-sm text-warning-800">
+              <p className="font-medium mb-1">¿Está seguro de cancelar esta renta?</p>
+              <p>El spot será liberado automáticamente. Esta acción no se puede deshacer.</p>
             </div>
-            <div className="space-y-2 text-sm">
-              <p><strong>Días restantes del mes:</strong> {calculoPago.diasRestantes}</p>
-              <p><strong>Último día del mes:</strong> {calculoPago.ultimoDiaMes}</p>
-              <p><strong>Período:</strong> {calculoPago.periodo}</p>
+          </div>
+
+          {selectedRenta && (
+            <div className="bg-neutral-50 p-4 rounded-lg text-sm space-y-2">
+              <p><strong>Cliente:</strong> {selectedRenta.usuario?.Persona?.nombre}</p>
+              <p><strong>Spot:</strong> {selectedRenta.spot?.codigo_spot}</p>
+              <p><strong>Monto Total:</strong> {formatCurrency(selectedRenta.monto_total)}</p>
             </div>
-            <Button fullWidth onClick={() => setShowCalcModal(false)}>
-              Entendido
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-2">
+              Motivo de Cancelación *
+            </label>
+            <textarea
+              value={motivoCancelacion}
+              onChange={(e) => setMotivoCancelacion(e.target.value)}
+              className="block w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-warning-500"
+              rows={4}
+              placeholder="Ingrese el motivo de la cancelación (mínimo 10 caracteres)..."
+              required
+              minLength={10}
+            />
+            <p className="text-xs text-neutral-500 mt-1">
+              {motivoCancelacion.length}/10 caracteres mínimo
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setShowCancelModal(false);
+                setMotivoCancelacion('');
+                setSelectedRenta(null);
+              }}
+            >
+              Volver
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              onClick={handleConfirmCancel}
+              loading={loading}
+              disabled={!motivoCancelacion || motivoCancelacion.trim().length < 10}
+            >
+              Confirmar Cancelación
             </Button>
           </div>
-        )}
+        </div>
+      </Modal>
+
+      {/* Modal de Registro de Pago */}
+      <Modal
+        isOpen={showPagoModal}
+        onClose={() => {
+          setShowPagoModal(false);
+          setPagoData({
+            monto: '',
+            metodo_pago: 'Efectivo',
+            referencia: '',
+            fecha_pago: new Date().toISOString().split('T')[0],
+          });
+          setSelectedRenta(null);
+        }}
+        title="Registrar Pago"
+        size="md"
+      >
+        <div className="space-y-4">
+          <div className="bg-success-50 border border-success-200 rounded-lg p-4">
+            <p className="text-sm text-success-800">
+              Renta creada exitosamente. Ahora puede registrar el pago inicial.
+            </p>
+          </div>
+
+          {selectedRenta && (
+            <div className="bg-neutral-50 p-4 rounded-lg text-sm space-y-2">
+              <p><strong>Cliente:</strong> {selectedRenta.usuario?.Persona?.nombre || 'N/A'}</p>
+              <p><strong>Spot:</strong> {selectedRenta.spot?.codigo_spot || 'N/A'}</p>
+              <p><strong>Monto Total:</strong> {formatCurrency(selectedRenta.monto_total || 0)}</p>
+              <p><strong>Estado:</strong> <span className="text-warning-600">{selectedRenta.estatus_pago || 'Pendiente'}</span></p>
+            </div>
+          )}
+
+          <Input
+            label="Fecha de Pago"
+            name="fecha_pago"
+            type="date"
+            value={pagoData.fecha_pago}
+            onChange={(e) => setPagoData({ ...pagoData, fecha_pago: e.target.value })}
+            required
+          />
+
+          <Input
+            label="Monto"
+            name="monto"
+            type="number"
+            step="0.01"
+            min="0.01"
+            value={pagoData.monto}
+            onChange={(e) => setPagoData({ ...pagoData, monto: e.target.value })}
+            placeholder="Ingrese el monto a pagar"
+            required
+            icon={FiDollarSign}
+          />
+
+          <Select
+            label="Método de Pago"
+            name="metodo_pago"
+            value={pagoData.metodo_pago}
+            onChange={(e) => setPagoData({ ...pagoData, metodo_pago: e.target.value })}
+            options={METODOS_PAGO.map(m => ({ value: m, label: m }))}
+            required
+          />
+
+          <Input
+            label="Referencia (opcional)"
+            name="referencia"
+            value={pagoData.referencia}
+            onChange={(e) => setPagoData({ ...pagoData, referencia: e.target.value })}
+            placeholder="Número de transacción, notas, etc."
+          />
+
+          <div className="flex justify-end gap-3 pt-4 border-t">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setShowPagoModal(false);
+                setPagoData({
+                  monto: '',
+                  metodo_pago: 'Efectivo',
+                  referencia: '',
+                  fecha_pago: new Date().toISOString().split('T')[0],
+                });
+                setSelectedRenta(null);
+              }}
+            >
+              Omitir por Ahora
+            </Button>
+            <Button
+              type="button"
+              onClick={handleRegistrarPago}
+              loading={loading}
+              icon={FiDollarSign}
+            >
+              Registrar Pago
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

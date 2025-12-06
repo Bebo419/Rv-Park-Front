@@ -26,6 +26,8 @@ const Pagos = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRenta, setFilterRenta] = useState('');
   const [filterPeriodo, setFilterPeriodo] = useState('');
+  const [selectedRentaInfo, setSelectedRentaInfo] = useState(null);
+  const [errors, setErrors] = useState({});
   const [formData, setFormData] = useState({
     id_renta: '',
     fecha_pago: new Date().toISOString().split('T')[0],
@@ -55,22 +57,67 @@ const Pagos = () => {
   const loadRentas = async () => {
     try {
       const rentas = await rentaService.getAll();
-      // Solo mostrar rentas activas (sin fecha_fin)
-      const rentasActivas = rentas.filter(r => !r.fecha_fin);
-      setRentas(rentasActivas);
+      // Mostrar solo rentas que no estén canceladas y tengan estatus_pago diferente de 'Pagado'
+      const rentasPendientes = rentas.filter(r => 
+        r.estatus_pago !== 'Cancelado' && r.estatus_pago !== 'Pagado'
+      );
+      setRentas(rentasPendientes);
     } catch (error) {
       console.error('Error al cargar rentas:', error);
+      toast.error('Error al cargar rentas');
     }
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+    
+    if (!formData.id_renta) {
+      newErrors.id_renta = 'Seleccione una renta';
+    }
+    
+    if (!formData.fecha_pago) {
+      newErrors.fecha_pago = 'Ingrese la fecha de pago';
+    }
+    
+    if (!formData.monto || parseFloat(formData.monto) <= 0) {
+      newErrors.monto = 'Ingrese un monto válido mayor a 0';
+    }
+    
+    // Validar que el monto no exceda la deuda pendiente
+    if (selectedRentaInfo && formData.monto) {
+      const monto = parseFloat(formData.monto);
+      const deuda = selectedRentaInfo.monto_total - (selectedRentaInfo.total_pagado || 0);
+      
+      if (monto > deuda) {
+        newErrors.monto = `El monto no puede exceder la deuda pendiente: ${formatCurrency(deuda)}`;
+      }
+    }
+    
+    if (!formData.metodo_pago) {
+      newErrors.metodo_pago = 'Seleccione un método de pago';
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!validateForm()) {
+      toast.error('Por favor corrija los errores en el formulario');
+      return;
+    }
+    
     setLoading(true);
 
     try {
       const pagoData = {
-        ...formData,
-        monto: parseFloat(formData.monto) || undefined,
+        id_renta: parseInt(formData.id_renta),
+        fecha_pago: formData.fecha_pago,
+        monto: parseFloat(formData.monto),
+        metodo_pago: formData.metodo_pago,
+        referencia: formData.referencia || null,
       };
 
       if (editingPago) {
@@ -83,6 +130,7 @@ const Pagos = () => {
       setShowModal(false);
       resetForm();
       loadPagos();
+      loadRentas(); // Recargar rentas para actualizar la lista
     } catch (error) {
       toast.error(error.response?.data?.message || 'Error al guardar pago');
     } finally {
@@ -114,8 +162,17 @@ const Pagos = () => {
     }
   };
 
+  const handleRentaChange = (idRenta) => {
+    const renta = rentas.find(r => r.id_renta === parseInt(idRenta));
+    setSelectedRentaInfo(renta || null);
+    setFormData({ ...formData, id_renta: idRenta, monto: renta?.monto_total || '' });
+    setErrors({});
+  };
+
   const resetForm = () => {
     setEditingPago(null);
+    setSelectedRentaInfo(null);
+    setErrors({});
     setFormData({
       id_renta: '',
       fecha_pago: new Date().toISOString().split('T')[0],
@@ -358,15 +415,51 @@ const Pagos = () => {
             label="Renta"
             name="id_renta"
             value={formData.id_renta}
-            onChange={(e) => setFormData({ ...formData, id_renta: Number(e.target.value) })}
+            onChange={(e) => handleRentaChange(e.target.value)}
             options={rentas.map(r => ({ 
               value: r.id_renta, 
-              label: `${r.usuario?.Persona?.nombre || 'Cliente'} - Spot ${r.spot?.codigo_spot || '-'}` 
+              label: `${r.usuario?.Persona?.nombre || 'Cliente'} - Spot ${r.spot?.codigo_spot || '-'} - ${formatCurrency(r.monto_total)}` 
             }))}
-            placeholder="Seleccionar renta activa"
+            placeholder="Seleccionar renta pendiente"
             required
             disabled={!!editingPago}
+            error={errors.id_renta}
           />
+
+          {/* Información de la Renta Seleccionada */}
+          {selectedRentaInfo && (
+            <div className="bg-primary-50 border border-primary-200 rounded-lg p-4 space-y-2 text-sm">
+              <p className="font-medium text-primary-900">Información de la Renta</p>
+              <div className="grid grid-cols-2 gap-2 text-primary-700">
+                <div>
+                  <p className="text-xs text-primary-600">Cliente:</p>
+                  <p className="font-medium">{selectedRentaInfo.usuario?.Persona?.nombre}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-primary-600">Spot:</p>
+                  <p className="font-medium">{selectedRentaInfo.spot?.codigo_spot}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-primary-600">Monto Total:</p>
+                  <p className="font-semibold">{formatCurrency(selectedRentaInfo.monto_total)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-primary-600">Tipo:</p>
+                  <p className="font-medium capitalize">{selectedRentaInfo.tipo_renta}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-primary-600">Total Pagado:</p>
+                  <p className="font-medium text-success-700">{formatCurrency(selectedRentaInfo.total_pagado || 0)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-primary-600">Deuda Pendiente:</p>
+                  <p className="font-semibold text-warning-700">
+                    {formatCurrency(selectedRentaInfo.monto_total - (selectedRentaInfo.total_pagado || 0))}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Fecha y Monto */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -377,16 +470,20 @@ const Pagos = () => {
               value={formData.fecha_pago}
               onChange={(e) => setFormData({ ...formData, fecha_pago: e.target.value })}
               required
+              error={errors.fecha_pago}
             />
             <Input
               label="Monto"
               name="monto"
               type="number"
               step="0.01"
+              min="0.01"
               value={formData.monto}
               onChange={(e) => setFormData({ ...formData, monto: e.target.value })}
-              placeholder="Dejar vacío para usar tarifa mensual"
+              placeholder="Ingrese el monto"
               icon={FiDollarSign}
+              required
+              error={errors.monto}
             />
           </div>
 
@@ -397,6 +494,8 @@ const Pagos = () => {
             value={formData.metodo_pago}
             onChange={(e) => setFormData({ ...formData, metodo_pago: e.target.value })}
             options={METODOS_PAGO.map(m => ({ value: m, label: m }))}
+            required
+            error={errors.metodo_pago}
           />
 
           {/* Referencia */}

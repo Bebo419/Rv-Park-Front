@@ -38,5 +38,10 @@ export const rentaService = {
   async finalizar(id) {
     const response = await api.put(`/rentas/finalizar/${id}`);
     return response.data.data;
+  },
+
+  async cancelar(id, data) {
+    const response = await api.post(`/rentas/${id}/cancelar`, data);
+    return response.data;
   }
 };

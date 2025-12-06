@@ -3,7 +3,7 @@ import { toast } from 'react-toastify';
 import { FiPlus, FiEdit2, FiTrash2, FiCalendar, FiMapPin, FiFilter } from 'react-icons/fi';
 import { eventoService } from '../services/eventoService';
 import { rvParkService } from '../services/rvParkService';
-import { formatDate, formatDateTime } from '../utils/dateUtils';
+import { formatDateTime } from '../utils/dateUtils';
 import { usePagination } from '../hooks/usePagination';
 import Card from '../components/Card';
 import Button from '../components/Button';
@@ -194,28 +194,21 @@ const Eventos = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Select
               label="RV Park"
+              name="filter_rv_park"
               value={filters.id_rv_park}
               onChange={(e) => handleFilterChange('id_rv_park', e.target.value)}
-            >
-              <option value="">Todos los RV Parks</option>
-              {rvParks.map((park) => (
-                <option key={park.id_rv_park} value={park.id_rv_park}>
-                  {park.nombre}
-                </option>
-              ))}
-            </Select>
+              options={[
+                { value: '', label: 'Todos los RV Parks' },
+                ...rvParks.map(park => ({ value: String(park.id_rv_park), label: park.nombre }))
+              ]}
+            />
             <Select
               label="Tipo de Evento"
+              name="filter_tipo_evento"
               value={filters.tipo_evento}
               onChange={(e) => handleFilterChange('tipo_evento', e.target.value)}
-            >
-              <option value="">Todos los tipos</option>
-              {tiposEvento.map((tipo) => (
-                <option key={tipo.value} value={tipo.value}>
-                  {tipo.label}
-                </option>
-              ))}
-            </Select>
+              options={[{ value: '', label: 'Todos los tipos' }, ...tiposEvento]}
+            />
             <div className="flex items-end">
               <Button variant="secondary" onClick={clearFilters} className="w-full">
                 Limpiar Filtros
@@ -333,17 +326,15 @@ const Eventos = () => {
         <form onSubmit={handleSubmit} className="space-y-4">
           <Select
             label="RV Park"
+            name="id_rv_park"
             value={formData.id_rv_park}
-            onChange={(e) => setFormData({ ...formData, id_rv_park: e.target.value })}
+            onChange={(e) => setFormData({ ...formData, id_rv_park: Number(e.target.value) })}
             required
-          >
-            <option value="">Seleccione un RV Park</option>
-            {rvParks.map((park) => (
-              <option key={park.id_rv_park} value={park.id_rv_park}>
-                {park.nombre}
-              </option>
-            ))}
-          </Select>
+            options={[
+              { value: '', label: 'Seleccione un RV Park' },
+              ...rvParks.map(park => ({ value: park.id_rv_park, label: park.nombre }))
+            ]}
+          />
 
           <Input
             label="Título"
@@ -394,16 +385,12 @@ const Eventos = () => {
 
           <Select
             label="Tipo de Evento"
+            name="tipo_evento"
             value={formData.tipo_evento}
             onChange={(e) => setFormData({ ...formData, tipo_evento: e.target.value })}
             required
-          >
-            {tiposEvento.map((tipo) => (
-              <option key={tipo.value} value={tipo.value}>
-                {tipo.label}
-              </option>
-            ))}
-          </Select>
+            options={tiposEvento}
+          />
 
           <div className="flex justify-end gap-3 pt-4">
             <Button
