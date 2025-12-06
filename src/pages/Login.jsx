@@ -7,7 +7,7 @@ import Input from '../components/Input';
 import Button from '../components/Button';
 
 const Login = () => {
-  const [formData, setFormData] = useState({ username: '', password: '' });
+  const [formData, setFormData] = useState({ nombre_usuario: '', password: '' });
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -21,11 +21,13 @@ const Login = () => {
     setLoading(true);
 
     try {
-      await login(formData.username, formData.password);
+      await login(formData.nombre_usuario, formData.password);
       toast.success('¡Bienvenido!');
       navigate('/dashboard');
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Error al iniciar sesión');
+      console.error('Error de login:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Error al iniciar sesión';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -53,8 +55,8 @@ const Login = () => {
             <Input
               label="Usuario"
               type="text"
-              name="username"
-              value={formData.username}
+              name="nombre_usuario"
+              value={formData.nombre_usuario}
               onChange={handleChange}
               placeholder="Ingresa tu usuario"
               icon={FiUser}
