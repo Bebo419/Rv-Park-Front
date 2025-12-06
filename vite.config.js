@@ -7,7 +7,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:3000/api',
+        target: 'https://rv-park-backend.onrender.com',
         changeOrigin: true,
         secure: false,
       }
